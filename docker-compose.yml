@@ -1,0 +1,21 @@
+
+version: '3.8'
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      - GANACHE_URL=http://ganache:8545
+      - DATABASE_URL=sqlite:///./data/publicfundchain.db
+    depends_on: []
+    volumes:
+      - ./backend/app:/app/app
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    environment: []
+    volumes:
+      - ./frontend:/usr/src/app
+  # Note: Ganache is expected to run on host or separate container if you prefer.
