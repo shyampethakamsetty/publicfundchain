@@ -3,12 +3,12 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List
 from app.db import Database
-from app.blockchain.ledger import MockLedger
+from app.blockchain.ledger import Ledger
 from app.ai.model import AnomalyEngine
 
 router = APIRouter()
 db = Database()
-ledger = MockLedger()
+ledger = Ledger()
 ai = AnomalyEngine()
 
 class FundTransfer(BaseModel):
@@ -25,7 +25,7 @@ def list_transactions():
 def fund_transfer(payload: FundTransfer):
     # Record in DB
     tx = db.create_transaction(dict(payload))
-    # Write to mock blockchain
+    # Write to blockchain
     blk = ledger.add_transaction(tx)
     # Run anomaly detection (async-able)
     alert = ai.check_transaction(tx)
