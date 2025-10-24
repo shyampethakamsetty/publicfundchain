@@ -2,82 +2,161 @@
 import json
 from web3 import Web3
 
-# --- CONFIG (ACTION REQUIRED) ---
-# 1. Deploy `contracts/Fund.sol` to Ganache using Remix IDE (see `blockchain_guide.md`).
-# 2. Paste the deployed contract's address and ABI below.
-
-GANACHE_URL = "http://127.0.0.1:8545"  # Default for ganache-cli. Use 7545 for Ganache UI.
-CONTRACT_ADDRESS = "YOUR_DEPLOYED_CONTRACT_ADDRESS" # PASTE FROM REMIX
-CONTRACT_ABI = """
-PASTE_YOUR_ABI_JSON_HERE
-"""
-# --- END CONFIG ---
-
 class Ledger:
     def __init__(self):
-        self.w3 = Web3(Web3.HTTPProvider(GANACHE_URL))
+        self.w3 = Web3(Web3.HTTPProvider('http://0.0.0.1:8545'))
         if not self.w3.is_connected():
-            raise ConnectionError(f"Failed to connect to Ganache at {GANACHE_URL}")
+            raise Exception("Failed to connect to blockchain node")
         
-        if CONTRACT_ADDRESS == "YOUR_DEPLOYED_CONTRACT_ADDRESS" or not CONTRACT_ABI.strip():
-            raise ValueError("Contract address and ABI have not been configured in ledger.py")
+        self.contract_address = '0xf47038eB22fD7113DAdeCD0423b45A67830f60e4'
+        self.contract_abi = json.loads("""[
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": false,
+				"internalType": "string",
+				"name": "txId",
+				"type": "string"
+			},
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "sender",
+				"type": "address"
+			},
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "receiver",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "amount",
+				"type": "uint256"
+			}
+		],
+		"name": "FundRecorded",
+		"type": "event"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "string",
+				"name": "txId",
+				"type": "string"
+			},
+			{
+				"internalType": "address",
+				"name": "sender",
+				"type": "address"
+			},
+			{
+				"internalType": "address",
+				"name": "receiver",
+				"type": "address"
+			},
+			{
+				"internalType": "uint256",
+				"name": "amount",
+				"type": "uint256"
+			},
+			{
+				"internalType": "string",
+				"name": "purpose",
+				"type": "string"
+			}
+		],
+		"name": "recordTransaction",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "transactions",
+		"outputs": [
+			{
+				"internalType": "string",
+				"name": "txId",
+				"type": "string"
+			},
+			{
+				"internalType": "address",
+				"name": "sender",
+				"type": "address"
+			},
+			{
+				"internalType": "address",
+				"name": "receiver",
+				"type": "address"
+			},
+			{
+				"internalType": "uint256",
+				"name": "amount",
+				"type": "uint256"
+			},
+			{
+				"internalType": "string",
+				"name": "purpose",
+				"type": "string"
+			},
+			{
+				"internalType": "uint256",
+				"name": "timestamp",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "transactionsCount",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	}
+]""")
+        
+        self.contract = self.w3.eth.contract(address=self.contract_address, abi=self.contract_abi)
+        # Use the first account from Ganache as the default account for sending transactions
+        self.default_account = self.w3.eth.accounts[0]
 
-        self.contract = self.w3.eth.contract(
-            address=self.w3.to_checksum_address(CONTRACT_ADDRESS),
-            abi=json.loads(CONTRACT_ABI)
-        )
-
-    def add_transaction(self, tx_obj):
-        """
-        Records a transaction to the deployed FundLedger smart contract.
-        """
-        # Use the first Ganache account as the sender for the transaction.
-        # In a real-world application, this would require secure private key management.
-        owner_account = self.w3.eth.accounts[0]
-
-        # Execute the `recordTransaction` function on the smart contract.
+    def add_transaction(self, tx_data):
+        # NOTE: The smart contract's recordTransaction function expects Ethereum addresses 
+        # for sender and receiver. However, the application uses string names ("GovDept01", "Asha").
+        # For this demonstration, we will use the default Ganache account for both the sender 
+        # and receiver addresses on the blockchain transaction. A real-world application would 
+        # need a system to map user names to their blockchain addresses.
         tx_hash = self.contract.functions.recordTransaction(
-            tx_obj['tx_id'],
-            self.w3.to_checksum_address(owner_account), # Sender address
-            tx_obj['receiver'], # Assuming receiver is a string; adapt if it's an address
-            int(tx_obj['amount']),
-            tx_obj['purpose']
-        ).transact({'from': owner_account})
-
-        # Wait for the transaction to be mined and get the receipt.
+            tx_data['tx_id'],
+            self.default_account, # Mock sender address from Ganache
+            self.default_account, # Mock receiver address from Ganache
+            int(tx_data['amount']),
+            tx_data['purpose']
+        ).transact({'from': self.default_account})
+        
+        # Wait for the transaction to be mined
         receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash)
-
-        # Return the block hash and number as confirmation.
+        
+        # Return the block hash and number for confirmation
         return {
-            "block_hash": receipt['blockHash'].hex(),
-            "block_index": receipt['blockNumber']
+            "block_hash": receipt.blockHash.hex(),
+            "block_number": receipt.blockNumber,
+            "tx_hash": receipt.transactionHash.hex()
         }
-
-# Keep MockLedger for fallback or testing if needed, but it will not be used by default.
-class MockLedger:
-    def __init__(self):
-        self.chain = []
-        self._create_genesis()
-
-    def _create_genesis(self):
-        import time, hashlib
-        genesis = {"index":0, "timestamp":time.time(), "data":"genesis", "prev_hash":"0", "hash":""}
-        genesis['hash'] = self._hash_block(genesis)
-        self.chain.append(genesis)
-
-    def _hash_block(self, block):
-        import hashlib
-        block_str = json.dumps(block, sort_keys=True)
-        return hashlib.sha256(block_str.encode()).hexdigest()
-
-    def add_transaction(self, tx_obj):
-        import time
-        block = {
-            "index": len(self.chain),
-            "timestamp": time.time(),
-            "data": tx_obj,
-            "prev_hash": self.chain[-1]['hash']
-        }
-        block['hash'] = self._hash_block(block)
-        self.chain.append(block)
-        return {"block_index": block['index'], "block_hash": block['hash']}
